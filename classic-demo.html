@@ -1,0 +1,182 @@
+﻿<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Classic bezier demo</title>
+		<style>
+
+body { margin: 2em; }
+canvas { border: 1px solid gray; }		
+
+		</style>
+	</head>
+	<body>
+		<canvas id="canvas" width="800" height="500">
+			<p>Your browser does not support the <pre>canvas</pre> element.</p>
+		</canvas>
+		<script>
+
+var canvas = document.getElementById('canvas');
+var context = canvas.getContext('2d');
+
+var points = {
+	a: { x: 100, y: 400 },
+	b: { x: 650, y: 400 },
+	c1: { x: 175, y: 100 },
+	c2: { x: 700, y: 150 }
+}
+
+function drawHandle(point) {
+	var offset = 10;
+	context.lineWidth = 1;
+	context.beginPath();
+	context.moveTo(point.x - offset, point.y - offset);
+	context.lineTo(point.x + offset, point.y + offset);
+	context.moveTo(point.x - offset, point.y + offset);
+	context.lineTo(point.x + offset, point.y - offset);
+	context.stroke();
+}
+
+function dashedLine(a, b, onStep, offStep) {
+	offStep = offStep || onStep;
+	
+	var dx = b.x - a.x;
+	var dy = b.y - a.y;
+	var len = Math.sqrt(dx * dx + dy * dy);
+	var pos = 0;
+
+	nextPoint = function (step) {
+		pos += step;
+		if (pos >= len) {
+			pos = len;
+			return b;
+		} else {
+			return {
+				x: a.x + dx * (pos / len),
+				y: a.y + dy * (pos / len)
+			};
+		}
+	};
+
+	context.moveTo(a.x, a.y);
+
+	while (pos < len) {
+		var next = nextPoint(onStep);
+		context.lineTo(next.x, next.y);
+		next = nextPoint(offStep);
+		context.moveTo(next.x, next.y);
+	}
+}
+
+function redraw() {
+	context.clearRect(0, 0, canvas.width, canvas.height);
+
+	context.strokeStyle = 'gray';
+	context.lineWidth = 1;
+	context.beginPath();
+	dashedLine(points.a, points.c1, 10);
+	dashedLine(points.c1, points.c2, 10);
+	dashedLine(points.c2, points.b, 10);
+	context.stroke();
+
+	context.strokeStyle = 'black';
+	context.lineWidth = 1.5;
+	context.beginPath();
+	context.moveTo(points.a.x, points.a.y);
+	context.bezierCurveTo(
+		points.c1.x, points.c1.y,
+		points.c2.x, points.c2.y,
+		points.b.x, points.b.y
+	);
+	context.stroke();
+
+	drawHandle(points.a);
+	drawHandle(points.b);
+	drawHandle(points.c1);
+	drawHandle(points.c2);
+}
+
+redraw();
+
+var draggedPoint = null;
+var draggingOffset = null;
+
+function eventToPoint(event) {
+	return {
+		x: event.clientX - canvas.offsetLeft,
+		y: event.clientY - canvas.offsetTop
+	};
+}
+
+function pointDistance2(a, b) {
+	var dx = b.x - a.x;
+	var dy = b.y - a.y;
+	return dx * dx + dy * dy;
+}
+
+function findClosestPoint(point) {
+	var closest = null;
+	var allPoints = [ points.a, points.b, points.c1, points.c2 ];
+	
+	for (var i = 0; i < allPoints.length; i++) {
+		var pointb = allPoints[i];
+		var distance2 = pointDistance2(point, pointb);
+		if (!closest || closest.distance2 > distance2) {
+			closest = { 
+				point: pointb,
+				distance2: distance2,
+			}
+		}
+	}
+
+	return closest;
+}
+
+function startDragging(mousePoint) {
+	var closest = findClosestPoint(mousePoint);
+	if (closest.distance2 > 100) {
+		return;
+	}
+
+	draggedPoint = closest.point;
+	draggingOffset = {
+		x: mousePoint.x - draggedPoint.x,
+		y: mousePoint.y - draggedPoint.y
+	};
+}
+
+function continueDragging(mousePoint) {
+	if (!draggedPoint) {
+		return;
+	}
+
+	draggedPoint.x = mousePoint.x - draggingOffset.x;
+	draggedPoint.y = mousePoint.y - draggingOffset.y;
+
+	redraw();
+}
+
+function endDragging() {
+	draggedPoint = null;
+	draggingOffset = null;
+}
+
+canvas.addEventListener('mousedown', function (event) {
+	startDragging(eventToPoint(event));
+}, false);
+
+canvas.addEventListener('mousemove', function(event) {
+	if (draggedPoint) {
+		continueDragging(eventToPoint(event));
+	}
+}, false);
+
+canvas.addEventListener('mouseup', function (event) {
+	if (draggedPoint) {
+		endDragging();
+	}
+}, false);
+
+		</script>
+	</body>
+</html>

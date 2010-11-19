@@ -1,0 +1,279 @@
+﻿<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<tite>Railroads bezier toy</tite>
+		<style>
+
+body { margin: 2em; }
+canvas { border: 1px solid gray; }		
+
+		</style>
+	</head>
+	<body>
+		<canvas id="canvas" width="800" height="500">
+			<p>Your browser does not support the <pre>canvas</pre> element.</p>
+		</canvas>
+		<script>
+
+var canvas = document.getElementById('canvas');
+var context = canvas.getContext('2d');
+
+var points = {
+	a1: { x: 100, y: 250 },
+	a2: { x: 300, y: 250 },
+	b2: { x: 500, y: 250 },
+	b1: { x: 700, y: 250 }
+}
+
+function vectorLength(vector) {
+	return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+}
+
+function vectorAdd(left, right) {
+	return {
+		x: left.x + right.x,
+		y: left.y + right.y
+	};
+}
+
+function vectorMin(left, right) {
+	return {
+		x: left.x - right.x,
+		y: left.y - right.y
+	};
+}
+
+function vectorScale(vector, scalar) {
+	return {
+		x: vector.x * scalar,
+		y: vector.y * scalar
+	};
+}
+
+function vectorNormalize(vector) {
+	if (vector.x == 0) {
+		return { x: 0, y: vector.y > 0 ? 1 : -1 };
+	} else if (vector.y == 0) {
+		return { x: vector.x > 0 ? 1 : -1, y: 0 };
+	} else {
+		var len = vectorLength(vector);
+		return { 
+			x: vector.x / len, 
+			y: vector.y / len 
+		};
+	}
+}
+
+function getSlope(p1, p2) {
+	return (p2.y - p1.y) / (p2.x - p1.x);;
+}
+
+function exitPoint(p1, p2) {
+	if (p1.x == p2.x) {
+		if (p1.y < p2.y) {
+			return { x: p1.x, y: 0 };
+		} else {
+			return { x: p1.x, y: canvas.height };
+		}
+	} 
+	
+	var slope = getSlope(p2, p1);
+	
+	var x = p1.x < p2.x ? 0 : canvas.width;
+	var y = (x - p1.x) * slope + p1.y;
+
+	if (y < 0) {
+		return { x: p1.x + p1.y / -slope, y: 0 };
+	} else if (y > canvas.height) {
+		return { x: p1.x + (canvas.height - p1.y) / slope, y: canvas.height };
+	} else {
+		return { x: x, y: y };
+	}
+}
+
+function drawHandle(point) {
+	var offset = 10;
+	context.lineWidth = 1;
+	context.strokeStyle = 'gray';
+	context.beginPath();
+	context.arc(point.x, point.y, 10, 0, Math.PI * 2);
+	context.stroke();
+}
+
+function dashedLine(a, b, onStep, offStep) {
+	offStep = offStep || onStep;
+	
+	var dx = b.x - a.x;
+	var dy = b.y - a.y;
+	var len = Math.sqrt(dx * dx + dy * dy);
+	var pos = 0;
+
+	nextPoint = function (step) {
+		pos += step;
+		if (pos >= len) {
+			pos = len;
+			return b;
+		} else {
+			return {
+				x: a.x + dx * (pos / len),
+				y: a.y + dy * (pos / len)
+			};
+		}
+	};
+
+	context.moveTo(a.x, a.y);
+
+	while (pos < len) {
+		var next = nextPoint(onStep);
+		context.lineTo(next.x, next.y);
+		next = nextPoint(offStep);
+		context.moveTo(next.x, next.y);
+	}
+}
+
+function getCp(p1, p2, distance) {
+	return vectorAdd(p2, vectorScale(vectorNormalize(vectorMin(p2, p1)), distance / 2));
+}
+
+function recalculate() {
+	var distance = vectorLength(vectorMin(points.b2, points.a2));
+	points.cpa = getCp(points.a1, points.a2, distance);
+	points.cpb = getCp(points.b1, points.b2, distance);
+}
+
+function redraw() {
+	context.clearRect(0, 0, canvas.width, canvas.height);
+
+	drawHandle(points.a1);
+	drawHandle(points.a2);
+	drawHandle(points.b1);
+	drawHandle(points.b2);
+
+	context.strokeStyle = 'black';
+	context.lineWidth = 1.5;
+	context.beginPath();
+
+	context.moveTo(points.a1.x, points.a1.y);
+	context.lineTo(points.a2.x, points.a2.y);
+	context.moveTo(points.b1.x, points.b1.y);
+	context.lineTo(points.b2.x, points.b2.y);
+
+	var exita = exitPoint(points.a1, points.a2);
+	var exitb = exitPoint(points.b1, points.b2);
+
+	if (exita) {
+		context.moveTo(points.a1.x, points.a1.y);
+		context.lineTo(exita.x, exita.y);
+	}
+
+	if (exitb) {	
+		context.moveTo(points.b1.x, points.b1.y);
+		context.lineTo(exitb.x, exitb.y);
+	}
+
+	context.stroke();
+
+	context.strokeStyle = 'gray';
+	context.lineWidth = 1;
+	context.beginPath();
+
+	dashedLine(points.a2, points.cpa, 10);
+	dashedLine(points.b2, points.cpb, 10);
+	dashedLine(points.cpa, points.cpb, 10);
+
+	context.stroke();
+
+	context.lineWidth = 2;
+	context.beginPath();
+
+	context.moveTo(points.a2.x, points.a2.y);
+	context.bezierCurveTo(
+		points.cpa.x, points.cpa.y,
+		points.cpb.x, points.cpb.y,
+		points.b2.x, points.b2.y
+	);
+
+	context.stroke();
+}
+
+recalculate();
+redraw();
+
+var draggedPoint = null;
+var draggingOffset = null;
+
+function eventToPoint(event) {
+	return {
+		x: event.clientX - canvas.offsetLeft,
+		y: event.clientY - canvas.offsetTop
+	};
+}
+
+function findClosestPoint(point) {
+	var closest = null;
+	var allPoints = [ points.a1, points.a2, points.b1, points.b2 ];
+	
+	for (var i = 0; i < allPoints.length; i++) {
+		var pointb = allPoints[i];
+		var distance = vectorLength(vectorMin(point, pointb));
+		if (!closest || closest.distance > distance) {
+			closest = { 
+				point: pointb,
+				distance: distance
+			}
+		}
+	}
+
+	return closest;
+}
+
+function startDragging(mousePoint) {
+	var closest = findClosestPoint(mousePoint);
+	if (closest.distance > 10) {
+		return;
+	}
+
+	draggedPoint = closest.point;
+	draggingOffset = {
+		x: mousePoint.x - draggedPoint.x,
+		y: mousePoint.y - draggedPoint.y
+	};
+}
+
+function continueDragging(mousePoint) {
+	if (!draggedPoint) {
+		return;
+	}
+
+	draggedPoint.x = mousePoint.x - draggingOffset.x;
+	draggedPoint.y = mousePoint.y - draggingOffset.y;
+
+	recalculate();
+	redraw();
+}
+
+function endDragging() {
+	draggedPoint = null;
+	draggingOffset = null;
+}
+
+canvas.addEventListener('mousedown', function (event) {
+	startDragging(eventToPoint(event));
+}, false);
+
+canvas.addEventListener('mousemove', function(event) {
+	if (draggedPoint) {
+		continueDragging(eventToPoint(event));
+	}
+}, false);
+
+canvas.addEventListener('mouseup', function (event) {
+	if (draggedPoint) {
+		endDragging();
+	}
+}, false);
+
+		</script>
+	</body>
+</html>
